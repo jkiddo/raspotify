@@ -78,12 +78,14 @@ packages() {
 	INSTALLED_SIZE="$((($(du -bs raspotify --exclude=raspotify/DEBIAN/control | cut -f 1) + 2048) / 1024))"
 
 	echo "Generate Debian control..."
+	RUST_VERSION="$(rustc -V | cut -d' ' -f2-)"
 	# The package arch can differ from our internal $ARCHITECTURE label: the
 	# ARMv6 build is labelled "armv6" for distinct artifact names, but Pi OS
 	# reports it as "armhf", so that is the package arch.
 	export DEB_ARCH="${DEB_ARCH:-$ARCHITECTURE}"
 	export DEB_PKG_VER
 	export INSTALLED_SIZE
+	export RUST_VERSION
 	envsubst <control.debian.tmpl >raspotify/DEBIAN/control
 
 	echo "Build Raspotify deb..."
