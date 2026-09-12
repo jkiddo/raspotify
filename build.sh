@@ -60,9 +60,9 @@ packages() {
 	DEB_PKG_NAME="raspotify_${DEB_PKG_VER}_${ARCHITECTURE}.deb"
 	echo "Prepare to build ${DEB_PKG_NAME}"
 
-	# Overridable so the ARMv6 build can swap rustls (ring -> ARMv7/NEON asm)
-	# for native-tls (OpenSSL).
-	CARGO_FEATURES="${CARGO_FEATURES:-alsa-backend pulseaudio-backend with-avahi rustls-tls-native-roots}"
+	# Overridable so an arch that can't use native-tls (OpenSSL) can swap in
+	# rustls, and vice versa.
+	CARGO_FEATURES="${CARGO_FEATURES:-alsa-backend pulseaudio-backend with-avahi native-tls}"
 
 	echo "Build Librespot binary (features: $CARGO_FEATURES)..."
 	cargo build --jobs "$(nproc)" --profile release --target "$BUILD_TARGET" --no-default-features --features "$CARGO_FEATURES"
@@ -83,6 +83,9 @@ packages() {
 	# ARMv6 build is labelled "armv6" for distinct artifact names, but Pi OS
 	# reports it as "armhf", so that is the package arch.
 	export DEB_ARCH="${DEB_ARCH:-$ARCHITECTURE}"
+	# native-tls links OpenSSL, so those arches need the libssl dependency that a
+	# rustls build must not declare.
+	export DEB_EXTRA_DEPENDS="${DEB_EXTRA_DEPENDS-, libssl3t64 (>= 3.0.0) | libssl3 (>= 3.0.0)}"
 	export DEB_PKG_VER
 	export INSTALLED_SIZE
 	export RUST_VERSION
@@ -137,6 +140,7 @@ packages() {
 build_armhf() {
 	ARCHITECTURE="armhf"
 	BUILD_TARGET="armv7-unknown-linux-gnueabihf"
+	export PKG_CONFIG_PATH="/usr/lib/arm-linux-gnueabihf/pkgconfig"
 	packages
 }
 
@@ -177,18 +181,26 @@ build_armv6() {
 build_arm64() {
 	ARCHITECTURE="arm64"
 	BUILD_TARGET="aarch64-unknown-linux-gnu"
+	export PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig"
 	packages
 }
 
 build_amd64() {
 	ARCHITECTURE="amd64"
 	BUILD_TARGET="x86_64-unknown-linux-gnu"
+	export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
 	packages
 }
 
 build_riscv64() {
 	ARCHITECTURE="riscv64"
 	BUILD_TARGET="riscv64gc-unknown-linux-gnu"
+	export PKG_CONFIG_PATH="/usr/lib/riscv64-linux-gnu/pkgconfig"
+	# Dockerfile.riscv64 installs no OpenSSL, so this is the one arch that can't
+	# use native-tls; rustls reads the same system CA store, and declares no
+	# libssl dependency.
+	CARGO_FEATURES="alsa-backend pulseaudio-backend with-avahi rustls-tls-native-roots"
+	DEB_EXTRA_DEPENDS=""
 	packages
 }
 
